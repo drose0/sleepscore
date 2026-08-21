@@ -71,7 +71,7 @@ if not is_admin:
 MAX_ATTEMPTS = 5
 
 def init_game(secret_score=None):
-    st.session_state.target_score = secret_score if secret_score else 83
+    st.session_state.target_score = secret_score if secret_score else 78
     st.session_state.attempts_left = MAX_ATTEMPTS
     st.session_state.guesses = []
     st.session_state.game_over = False
