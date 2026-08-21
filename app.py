@@ -8,6 +8,9 @@ st.set_page_config(
     layout="centered"
 )
 
+# --- DEFAULT FALLBACK SCORE ---
+DEFAULT_SLEEP_SCORE = 82  # Set your fallback score here if not passed via URL/Admin
+
 # --- CUSTOM VIBEY CSS ---
 st.markdown("""
 <style>
@@ -43,44 +46,58 @@ st.markdown("""
         font-weight: 600;
         margin: 4px;
     }
-    
-    .metric-value {
-        font-size: 2.8rem;
-        font-weight: 700;
-        background: linear-gradient(135deg, #c084fc 0%, #6366f1 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
 </style>
 """, unsafe_allow_html=True)
+
+# --- URL PARAMETER HANDLING ---
+query_params = st.query_params
+is_admin = query_params.get("admin", "").lower() in ["true", "1", "yes"]
+
+# Check if score is set directly via URL query (e.g. ?score=85)
+url_score = query_params.get("score")
+initial_score = int(url_score) if (url_score and url_score.isdigit()) else DEFAULT_SLEEP_SCORE
+
+# Hide sidebar expander button entirely if not an admin
+if not is_admin:
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"], [data-testid="collapsedControl"] {
+            display: none !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- GAME LOGIC INITIALIZATION ---
 MAX_ATTEMPTS = 5
 
 def init_game(secret_score=None):
-    st.session_state.target_score = secret_score if secret_score else random.randint(45, 98)
+    st.session_state.target_score = secret_score if secret_score is not None else initial_score
     st.session_state.attempts_left = MAX_ATTEMPTS
     st.session_state.guesses = []
     st.session_state.game_over = False
     st.session_state.won = False
 
 if "target_score" not in st.session_state:
-    init_game()
+    init_game(initial_score)
 
-# --- SIDEBAR: SETTINGS / DEV MODE ---
-with st.sidebar:
-    st.header("⚙️ Secret Settings")
-    st.caption("Customize the target score or let the app randomize it.")
-    custom_score = st.number_input(
-        "Override Real Sleep Score (1–100)",
-        min_value=1,
-        max_value=100,
-        value=st.session_state.target_score,
-        step=1
-    )
-    if st.button("Apply & Reset Game", use_container_width=True):
-        init_game(secret_score=custom_score)
-        st.rerun()
+# --- ADMIN SIDEBAR (Visible only when ?admin=true is present) ---
+if is_admin:
+    with st.sidebar:
+        st.header("🔒 Admin Panel")
+        st.caption("Active via `?admin=true`")
+        
+        new_score = st.number_input(
+            "Update Sleep Score (1–100)",
+            min_value=1,
+            max_value=100,
+            value=st.session_state.target_score,
+            step=1
+        )
+        
+        if st.button("Apply & Reset Game", use_container_width=True, type="primary"):
+            init_game(secret_score=new_score)
+            st.success(f"Score updated to {new_score}!")
+            st.rerun()
 
 # --- HEADER SECTION ---
 st.markdown("""
@@ -118,21 +135,17 @@ if not st.session_state.game_over:
                 st.session_state.won = True
                 st.session_state.game_over = True
                 feedback = "🎯 Spot on! That was my exact score."
-                vibe = "perfect"
             elif user_guess < st.session_state.target_score:
                 hint = "Much higher!" if diff > 15 else "A bit higher!"
                 feedback = f"📈 Too low! {hint}"
-                vibe = "low"
             else:
                 hint = "Much lower!" if diff > 15 else "A bit lower!"
                 feedback = f"📉 Too high! {hint}"
-                vibe = "high"
 
             st.session_state.guesses.append({
                 "guess": user_guess,
                 "feedback": feedback,
-                "diff": diff,
-                "vibe": vibe
+                "diff": diff
             })
 
             if st.session_state.attempts_left == 0 and not st.session_state.won:
@@ -149,7 +162,7 @@ if st.session_state.game_over:
         st.error(f"💀 **Game Over!** You ran out of energy. The true sleep score was **{st.session_state.target_score}**.")
 
     if st.button("🔄 Play Again", use_container_width=True, type="primary"):
-        init_game()
+        init_game(st.session_state.target_score)
         st.rerun()
 
 # --- GUESS HISTORY FEED ---
